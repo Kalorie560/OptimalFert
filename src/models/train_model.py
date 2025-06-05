@@ -96,6 +96,10 @@ class ModelTrainer:
             
         except Exception as e:
             logger.warning(f"Failed to initialize ClearML: {e}")
+            logger.info("ClearML is optional for tracking experiments. To use ClearML:")
+            logger.info("1. Install: pip install clearml")
+            logger.info("2. Configure: clearml-init")
+            logger.info("3. Or visit: https://clear.ml/docs for setup instructions")
             self.clearml_task = None
             self.clearml_logger = None
     
@@ -377,6 +381,13 @@ class ModelTrainer:
             def __init__(self, models, weights=None):
                 self.models = models
                 self.weights = weights or [1/len(models)] * len(models)
+                self.is_fitted_ = True  # Mark as fitted since component models are already fitted
+            
+            def fit(self, X, y):
+                """Fit method required by scikit-learn interface - already fitted in this case"""
+                # Component models are already fitted, so this is a no-op
+                self.is_fitted_ = True
+                return self
             
             def predict_proba(self, X):
                 predictions = np.array([model.predict_proba(X)[:, 1] 
