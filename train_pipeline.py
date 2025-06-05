@@ -209,15 +209,8 @@ def run_complete_pipeline(use_sample_data: bool = True):
     logger.info("="*40)
     
     try:
-        # Initialize trainer with configuration
-        models_config = config.get('models', {})
-        optimization_config = config.get('optimization', {})
-        
-        trainer = ModelTrainer(
-            random_state=models_config.get('random_state', 42),
-            cv_folds=models_config.get('cv_folds', 5),
-            n_trials=optimization_config.get('n_trials', 100)
-        )
+        # Initialize trainer (it will load configuration from config.yaml internally)
+        trainer = ModelTrainer()
         
         # Train base models
         logger.info("Training base models...")
