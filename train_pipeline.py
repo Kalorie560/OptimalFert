@@ -8,6 +8,7 @@ import sys
 import logging
 import pandas as pd
 import numpy as np
+import yaml
 from pathlib import Path
 
 # Add src to path
@@ -30,6 +31,71 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def setup_clearml():
+    """Initialize ClearML using config.yaml if available"""
+    config_path = "config.yaml"
+    
+    if not os.path.exists(config_path):
+        logger.warning("config.yaml not found. ClearML tracking will be disabled.")
+        logger.info("To enable ClearML tracking:")
+        logger.info("1. Copy config.yaml.template to config.yaml")
+        logger.info("2. Add your ClearML API credentials")
+        return False
+    
+    try:
+        # Load configuration
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+        
+        clearml_config = config.get('clearml', {})
+        project_config = config.get('project', {})
+        
+        # Validate required fields
+        required_fields = ['api_host', 'web_host', 'files_host', 'api_key', 'api_secret_key']
+        placeholder_patterns = ['YOUR_API_KEY_HERE', 'YOUR_SECRET_KEY_HERE', 'YOUR_API_HOST_HERE', 'YOUR_WEB_HOST_HERE', 'YOUR_FILES_HOST_HERE']
+        missing_fields = [field for field in required_fields if not clearml_config.get(field) or any(placeholder in str(clearml_config.get(field, '')) for placeholder in placeholder_patterns)]
+        
+        if missing_fields:
+            logger.warning(f"ClearML configuration incomplete. Missing or placeholder values: {missing_fields}")
+            logger.info("Please update config.yaml with your actual ClearML credentials")
+            return False
+        
+        # Initialize ClearML
+        try:
+            from clearml import Task
+            
+            # Create Task with project configuration
+            task = Task.init(
+                project_name=project_config.get('name', 'Playground-Series-S5E6'),
+                task_name=f"Training Pipeline - {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}",
+                auto_connect_frameworks=True
+            )
+            
+            # Set task description
+            if project_config.get('description'):
+                task.set_description(project_config['description'])
+            
+            # Connect configuration
+            task.connect(config)
+            
+            logger.info("✅ ClearML experiment tracking initialized successfully")
+            logger.info(f"Project: {project_config.get('name', 'Playground-Series-S5E6')}")
+            logger.info(f"Task URL: {task.get_output_log_web_page()}")
+            
+            return True
+            
+        except ImportError:
+            logger.warning("ClearML package not installed. Install with: pip install clearml")
+            return False
+        except Exception as e:
+            logger.warning(f"Failed to initialize ClearML: {e}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Failed to load config.yaml: {e}")
+        return False
+
+
 def setup_directories():
     """Create necessary directories"""
     directories = [
@@ -39,6 +105,18 @@ def setup_directories():
     for directory in directories:
         os.makedirs(directory, exist_ok=True)
         logger.info(f"Directory '{directory}' ready")
+
+
+def load_config():
+    """Load configuration from config.yaml"""
+    config_path = "config.yaml"
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r') as f:
+                return yaml.safe_load(f)
+        except Exception as e:
+            logger.warning(f"Failed to load config.yaml: {e}")
+    return {}
 
 
 def run_complete_pipeline(use_sample_data: bool = True):
@@ -54,6 +132,15 @@ def run_complete_pipeline(use_sample_data: bool = True):
     
     # Setup
     setup_directories()
+    
+    # Load configuration
+    config = load_config()
+    
+    # Initialize ClearML experiment tracking
+    logger.info("\n" + "="*40)
+    logger.info("STEP 0: EXPERIMENT TRACKING SETUP")
+    logger.info("="*40)
+    clearml_enabled = setup_clearml()
     
     # Step 1: Data Preparation
     logger.info("\n" + "="*40)
@@ -122,8 +209,15 @@ def run_complete_pipeline(use_sample_data: bool = True):
     logger.info("="*40)
     
     try:
-        # Initialize trainer
-        trainer = ModelTrainer()
+        # Initialize trainer with configuration
+        models_config = config.get('models', {})
+        optimization_config = config.get('optimization', {})
+        
+        trainer = ModelTrainer(
+            random_state=models_config.get('random_state', 42),
+            cv_folds=models_config.get('cv_folds', 5),
+            n_trials=optimization_config.get('n_trials', 100)
+        )
         
         # Train base models
         logger.info("Training base models...")
