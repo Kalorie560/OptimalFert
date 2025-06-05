@@ -1,0 +1,5 @@
+# This file ensures the data directory is tracked by git
+# Place your competition data files here:
+# - train.csv
+# - test.csv  
+# - sample_submission.csv

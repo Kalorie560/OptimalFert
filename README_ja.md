@@ -33,7 +33,7 @@ OptimalFert/
 ├── train_pipeline.py          # 完全訓練パイプライン
 ├── generate_submission.py     # 提出ファイル生成スクリプト
 ├── requirements.txt           # Python依存関係
-├── config.yaml.template       # ClearML設定テンプレート
+├── config.yaml               # ClearML設定ファイル
 └── .gitignore                # Git除外ルール
 ```
 
@@ -53,9 +53,6 @@ pip install -r requirements.txt
 ### 2. ClearML設定
 
 ```bash
-# 設定テンプレートをコピー
-cp config.yaml.template config.yaml
-
 # config.yamlにClearMLの認証情報を設定
 # APIキーは以下から取得: https://app.clear.ml/settings/workspace-configuration
 ```
@@ -72,7 +69,7 @@ clearml:
 
 ### 3. データ準備
 
-コンペティションデータファイルを`data/`ディレクトリに配置:
+`data/`ディレクトリがコンペティションファイル用に準備されています。以下のファイルを配置してください:
 - `train.csv` - 訓練用データセット
 - `test.csv` - テストデータセット  
 - `sample_submission.csv` - 提出形式

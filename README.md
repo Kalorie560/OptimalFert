@@ -33,7 +33,7 @@ OptimalFert/
 ├── train_pipeline.py          # Complete training pipeline
 ├── generate_submission.py     # Submission generation script
 ├── requirements.txt           # Python dependencies
-├── config.yaml.template       # ClearML configuration template
+├── config.yaml               # ClearML configuration file
 └── .gitignore                # Git ignore rules
 ```
 
@@ -53,9 +53,6 @@ pip install -r requirements.txt
 ### 2. ClearML Configuration
 
 ```bash
-# Copy configuration template
-cp config.yaml.template config.yaml
-
 # Edit config.yaml with your ClearML credentials
 # Get your API keys from: https://app.clear.ml/settings/workspace-configuration
 ```
@@ -72,7 +69,7 @@ clearml:
 
 ### 3. Data Preparation
 
-Place your competition data files in the `data/` directory:
+The `data/` directory is ready for your competition files. Place the following files:
 - `train.csv` - Training dataset
 - `test.csv` - Test dataset  
 - `sample_submission.csv` - Submission format
