@@ -158,9 +158,16 @@ class EDAAnalyzer:
                 'missing_count': self.train_df[feature].isnull().sum()
             }
             
-            # Target rate by category
-            target_rate = self.train_df.groupby(feature)[self.target_column].agg(['mean', 'count'])
-            stats_dict['target_rate_by_category'] = target_rate
+            # For categorical target, calculate mode and count by category
+            if self.train_df[self.target_column].dtype == 'object':
+                # Group by feature and get the most common target for each category
+                target_mode_by_category = self.train_df.groupby(feature)[self.target_column].agg(['count', lambda x: x.mode().iloc[0] if len(x.mode()) > 0 else None])
+                target_mode_by_category.columns = ['count', 'most_common_target']
+                stats_dict['target_distribution_by_category'] = target_mode_by_category
+            else:
+                # For numeric target, calculate mean and count
+                target_rate = self.train_df.groupby(feature)[self.target_column].agg(['mean', 'count'])
+                stats_dict['target_rate_by_category'] = target_rate
             
             categorical_stats[feature] = stats_dict
         
@@ -182,11 +189,19 @@ class EDAAnalyzer:
         for cat_feature in self.categorical_features:
             X[cat_feature] = X[cat_feature].astype('category').cat.codes
         
+        # Handle categorical target - encode to numeric for mutual information
+        if y.dtype == 'object':
+            from sklearn.preprocessing import LabelEncoder
+            le = LabelEncoder()
+            y_encoded = le.fit_transform(y)
+        else:
+            y_encoded = y
+        
         # Fill missing values
         X = X.fillna(X.median())
         
         # Calculate mutual information
-        mi_scores = mutual_info_classif(X, y, random_state=42)
+        mi_scores = mutual_info_classif(X, y_encoded, random_state=42)
         
         feature_importance = pd.DataFrame({
             'feature': X.columns,
