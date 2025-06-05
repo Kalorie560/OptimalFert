@@ -1,37 +1,38 @@
-# 🎯 Playground Series S5E6 - OptimalFert ML Pipeline
+# 🌱 OptimalFert - Intelligent Fertilizer Recommendation System
 
-A comprehensive machine learning solution for Kaggle's Playground Series S5E6 competition, featuring advanced model training, ClearML experiment tracking, and an interactive web application.
+A comprehensive machine learning solution for agricultural fertilizer recommendation, featuring advanced multi-class classification models, ClearML experiment tracking, and an interactive web application for precision agriculture.
 
-## 📊 Competition Overview
+## 📊 System Overview
 
-**Competition**: [Playground Series S5E6](https://www.kaggle.com/competitions/playground-series-s5e6/)
-- **Type**: Binary Classification
-- **Evaluation Metric**: ROC AUC (Area Under the Receiver Operating Characteristic Curve)
-- **Goal**: Predict binary target variable from multiple features
+**Application**: Intelligent Fertilizer Recommendation System
+- **Type**: Multi-class Classification
+- **Evaluation Metrics**: Accuracy, F1-Macro Score, Log-Loss
+- **Goal**: Predict optimal fertilizer type based on soil conditions, crop information, and environmental data
+- **Fertilizer Types**: 12 different fertilizer formulations (NPK combinations, organic options, specialty nutrients)
 
 ## 🏗️ Project Structure
 
 ```
 OptimalFert/
-├── 📁 data/                    # Dataset files
-│   ├── train.csv              # Training data
-│   ├── test.csv               # Test data
-│   └── sample_submission.csv  # Submission format
+├── 📁 data/                    # Agricultural dataset files
+│   ├── train.csv              # Training data with soil, crop, and fertilizer information
+│   ├── test.csv               # Test data for fertilizer recommendation
+│   └── sample_submission.csv  # Submission format (id, Fertilizer Name)
 ├── 📁 src/                    # Source code
 │   ├── 📁 data/               # Data processing modules
-│   │   └── preprocessing.py   # Data preprocessing pipeline
+│   │   └── preprocessing.py   # Agricultural data preprocessing pipeline
 │   ├── 📁 models/             # ML model modules
-│   │   ├── train_model.py     # Model training with ClearML
-│   │   └── predict.py         # Prediction and submission
+│   │   ├── train_model.py     # Multi-class model training with ClearML
+│   │   └── predict.py         # Fertilizer prediction and recommendation
 │   ├── 📁 visualization/      # EDA and plotting
-│   │   └── eda.py            # Exploratory Data Analysis
+│   │   └── eda.py            # Agricultural data analysis
 │   └── 📁 web_app/           # Web application
-│       └── streamlit_app.py  # Streamlit prediction app
+│       └── streamlit_app.py  # Streamlit fertilizer recommendation app
 ├── 📁 models/                 # Saved models and preprocessors
 ├── 📁 outputs/                # EDA visualizations and results
 ├── 📁 notebooks/              # Jupyter notebooks (optional)
-├── train_pipeline.py          # Complete training pipeline
-├── generate_submission.py     # Submission generation script
+├── train_pipeline.py          # Complete fertilizer prediction pipeline
+├── generate_submission.py     # Fertilizer recommendation generation
 ├── requirements.txt           # Python dependencies
 ├── config.yaml               # ClearML configuration file
 └── .gitignore                # Git ignore rules
@@ -69,42 +70,47 @@ clearml:
 
 ### 3. Data Preparation
 
-The `data/` directory is ready for your competition files. Place the following files:
-- `train.csv` - Training dataset
-- `test.csv` - Test dataset  
-- `sample_submission.csv` - Submission format
+The `data/` directory is ready for your agricultural data files. Place the following files:
+- `train.csv` - Training dataset with soil, crop, and fertilizer information
+- `test.csv` - Test dataset for prediction
+- `sample_submission.csv` - Submission format with fertilizer names
 
-Or use the built-in sample data generator for testing:
+Or use the built-in agricultural sample data generator for testing:
 ```python
 from src.data.preprocessing import create_sample_data
-create_sample_data(n_samples=2000, n_features=15, save_path="data/")
+create_sample_data(n_samples=2000, save_path="data/")
 ```
+
+**Sample Features**:
+- **Soil Properties**: pH, Nitrogen/Phosphorus/Potassium levels, Organic Matter
+- **Environmental Conditions**: Temperature, Rainfall, Humidity
+- **Crop Information**: Crop type, Growth stage, Field size, Previous fertilizer usage
 
 ## 🔄 Training Pipeline
 
 ### Complete Automated Pipeline
 
-Run the entire ML pipeline with one command:
+Run the entire fertilizer prediction pipeline with one command:
 
 ```bash
 python train_pipeline.py
 ```
 
 This will execute:
-1. **Data Loading & Validation**
+1. **Agricultural Data Loading & Validation**
 2. **Exploratory Data Analysis** (saves visualizations to `outputs/`)
-3. **Data Preprocessing** (feature engineering, encoding, scaling)
-4. **Model Training** (5 different algorithms with cross-validation)
-5. **Hyperparameter Optimization** (using Optuna)
-6. **Ensemble Creation** (combines best models)
-7. **Submission Generation** (`submission.csv`)
+3. **Agricultural Data Preprocessing** (soil/crop feature engineering, fertilizer encoding)
+4. **Multi-class Model Training** (5 different algorithms with cross-validation)
+5. **Hyperparameter Optimization** (using Optuna for agricultural data)
+6. **Ensemble Creation** (combines best fertilizer prediction models)
+7. **Fertilizer Recommendation Generation** (`submission.csv` with fertilizer names)
 
 ### Individual Components
 
 You can also run components separately:
 
 ```bash
-# Generate submission only (after training)
+# Generate fertilizer recommendations only (after training)
 python generate_submission.py --model models/best_model.pkl --test_data data/test.csv
 
 # With custom parameters
@@ -112,38 +118,39 @@ python generate_submission.py \
   --model models/best_model.pkl \
   --preprocessor models/preprocessor.pkl \
   --test_data data/test.csv \
-  --output my_submission.csv \
+  --output fertilizer_recommendations.csv \
   --validate
 ```
 
 ## 🧠 Machine Learning Pipeline
 
 ### Data Preprocessing
-- **Automatic Feature Type Detection**: Distinguishes numeric vs categorical features
-- **Missing Value Handling**: Median for numeric, mode for categorical
-- **Feature Encoding**: One-hot encoding for categorical features
-- **Scaling**: StandardScaler for numeric features
-- **Pipeline Persistence**: Reusable preprocessing for test data
+- **Agricultural Feature Detection**: Automatically identifies soil, environmental, and crop features
+- **Missing Value Handling**: Median for numeric (pH, NPK levels), mode for categorical (crop types)
+- **Feature Encoding**: One-hot encoding for categorical agricultural features
+- **Scaling**: StandardScaler for soil and environmental measurements
+- **Label Encoding**: Converts fertilizer names to numeric classes for training
+- **Pipeline Persistence**: Reusable preprocessing for new agricultural data
 
 ### Model Architecture
-- **LightGBM**: Gradient boosting with hyperparameter optimization
-- **XGBoost**: Extreme gradient boosting
-- **CatBoost**: Categorical boosting algorithm
-- **Random Forest**: Ensemble of decision trees
-- **Logistic Regression**: Linear baseline model
-- **Ensemble**: Weighted average of top-performing models
+- **LightGBM**: Multi-class gradient boosting optimized for agricultural feature patterns
+- **XGBoost**: Multi-class extreme gradient boosting for fertilizer classification
+- **CatBoost**: Categorical boosting ideal for mixed agricultural data types
+- **Random Forest**: Ensemble of decision trees for robust fertilizer prediction
+- **Logistic Regression**: Multi-class linear baseline model
+- **Ensemble**: Weighted average of top-performing fertilizer prediction models
 
 ### Optimization Strategy
-- **Cross-Validation**: 5-fold StratifiedKFold for robust evaluation
-- **Hyperparameter Tuning**: Optuna-based optimization (50+ trials)
-- **Metric Focus**: ROC AUC maximization throughout
-- **Model Selection**: Best individual model vs ensemble comparison
+- **Cross-Validation**: 5-fold StratifiedKFold ensuring balanced fertilizer representation
+- **Hyperparameter Tuning**: Optuna-based optimization for agricultural prediction (50+ trials)
+- **Metric Focus**: Accuracy and F1-Macro score maximization for multi-class fertilizer prediction
+- **Model Selection**: Best individual fertilizer predictor vs ensemble comparison
 
 ### Experiment Tracking (ClearML)
-- **Hyperparameters**: All model configurations logged
-- **Metrics**: Cross-validation scores, ROC AUC tracking
-- **Artifacts**: Models, preprocessors, visualizations
-- **Reproducibility**: Random seed management and versioning
+- **Hyperparameters**: All fertilizer prediction model configurations logged
+- **Metrics**: Cross-validation scores, Accuracy, F1-Macro tracking
+- **Artifacts**: Fertilizer prediction models, agricultural preprocessors, visualizations
+- **Reproducibility**: Random seed management and versioning for agricultural experiments
 
 ## 🌐 Web Application
 

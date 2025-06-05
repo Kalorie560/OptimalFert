@@ -1,5 +1,5 @@
 """
-Complete training pipeline for Playground Series S5E6
+Complete training pipeline for OptimalFert fertilizer prediction
 Orchestrates data loading, preprocessing, EDA, model training, and submission generation
 """
 
@@ -127,7 +127,7 @@ def run_complete_pipeline(use_sample_data: bool = True):
         use_sample_data: If True, creates and uses sample data for demonstration
     """
     logger.info("="*60)
-    logger.info("STARTING PLAYGROUND SERIES S5E6 TRAINING PIPELINE")
+    logger.info("STARTING OPTIMALFERT FERTILIZER PREDICTION PIPELINE")
     logger.info("="*60)
     
     # Setup
@@ -148,8 +148,8 @@ def run_complete_pipeline(use_sample_data: bool = True):
     logger.info("="*40)
     
     if use_sample_data:
-        logger.info("Creating sample data for demonstration...")
-        create_sample_data(n_samples=2000, n_features=15, save_path="data/")
+        logger.info("Creating sample fertilizer data for demonstration...")
+        create_sample_data(n_samples=2000, save_path="data/")
         train_path = "data/train.csv"
         test_path = "data/test.csv"
     else:
@@ -184,8 +184,8 @@ def run_complete_pipeline(use_sample_data: bool = True):
         train_df = pd.read_csv(train_path)
         logger.info(f"Loaded training data: {train_df.shape}")
         
-        # Initialize preprocessor
-        preprocessor = DataPreprocessor(target_column='target')
+        # Initialize preprocessor for fertilizer name prediction
+        preprocessor = DataPreprocessor(target_column='Fertilizer Name')
         
         # Fit and transform training data
         X_train, y_train = preprocessor.fit_transform(train_df)
@@ -197,7 +197,8 @@ def run_complete_pipeline(use_sample_data: bool = True):
         np.savez("data/processed_train.npz", X=X_train, y=y_train)
         
         logger.info(f"Training data preprocessed: {X_train.shape}")
-        logger.info(f"Target distribution: {np.bincount(y_train)}")
+        logger.info(f"Fertilizer classes: {len(preprocessor.target_classes)}")
+        logger.info(f"Fertilizer types: {list(preprocessor.target_classes)}")
         
     except Exception as e:
         logger.error(f"Preprocessing failed: {e}")
@@ -235,7 +236,7 @@ def run_complete_pipeline(use_sample_data: bool = True):
         # Save best model
         trainer.save_best_model("models/best_model.pkl")
         
-        logger.info(f"Training completed! Best CV AUC: {trainer.best_score:.4f}")
+        logger.info(f"Training completed! Best CV Accuracy: {trainer.best_score:.4f}")
         
     except Exception as e:
         logger.error(f"Model training failed: {e}")
@@ -256,8 +257,14 @@ def run_complete_pipeline(use_sample_data: bool = True):
             output_path="submission.csv"
         )
         
-        logger.info("Submission file generated successfully!")
+        logger.info("Fertilizer recommendation file generated successfully!")
         logger.info(f"Submission shape: {submission_df.shape}")
+        
+        # Show fertilizer distribution in predictions
+        fert_counts = submission_df['Fertilizer Name'].value_counts()
+        logger.info("Top recommended fertilizers:")
+        for fert, count in fert_counts.head().items():
+            logger.info(f"  {fert}: {count} samples ({count/len(submission_df)*100:.1f}%)")
         
     except Exception as e:
         logger.error(f"Submission generation failed: {e}")
@@ -276,12 +283,13 @@ def run_complete_pipeline(use_sample_data: bool = True):
     logger.info("- outputs/ (EDA visualizations)")
     logger.info("- training.log (detailed logs)")
     
-    logger.info(f"\n🎯 Best model CV AUC: {trainer.best_score:.4f}")
+    logger.info(f"\n🎯 Best model CV Accuracy: {trainer.best_score:.4f}")
     
     logger.info("\nNext steps:")
     logger.info("1. Review EDA results in outputs/ directory")
-    logger.info("2. Submit submission.csv to Kaggle")
+    logger.info("2. Analyze fertilizer recommendations in submission.csv")
     logger.info("3. Run web app: streamlit run src/web_app/streamlit_app.py")
+    logger.info("4. Test with your own agricultural data")
     
     return True
 

@@ -1,12 +1,12 @@
 """
-Model training module for Playground Series S5E6
-Implements multiple ML models with hyperparameter optimization
+Model training module for fertilizer name prediction
+Implements multiple ML models with hyperparameter optimization for multi-class classification
 """
 
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import StratifiedKFold, cross_val_score
-from sklearn.metrics import roc_auc_score, classification_report
+from sklearn.metrics import accuracy_score, classification_report, f1_score, log_loss
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 import lightgbm as lgb
@@ -59,8 +59,8 @@ class ModelTrainer:
         """Get default configuration"""
         return {
             'project': {
-                'name': 'Playground-Series-S5E6',
-                'description': 'Binary classification with ROC AUC optimization'
+                'name': 'OptimalFert-Fertilizer-Prediction',
+                'description': 'Multi-class fertilizer name prediction with accuracy optimization'
             },
             'models': {
                 'random_state': 42,
@@ -106,21 +106,21 @@ class ModelTrainer:
         
         models = {
             'lightgbm': lgb.LGBMClassifier(
-                objective='binary',
-                metric='auc',
+                objective='multiclass',
+                metric='multi_logloss',
                 boosting_type='gbdt',
                 random_state=random_state,
                 verbose=-1
             ),
             'xgboost': xgb.XGBClassifier(
-                objective='binary:logistic',
-                eval_metric='auc',
+                objective='multi:softprob',
+                eval_metric='mlogloss',
                 random_state=random_state,
                 verbosity=0
             ),
             'catboost': CatBoostClassifier(
-                objective='Logloss',
-                eval_metric='AUC',
+                objective='MultiClass',
+                eval_metric='MultiClass',
                 random_state=random_state,
                 verbose=False
             ),
@@ -142,13 +142,19 @@ class ModelTrainer:
         cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, 
                             random_state=self.config.get('models', {}).get('random_state', 42))
         
-        # Perform cross-validation
-        cv_scores = cross_val_score(model, X, y, cv=cv, scoring='roc_auc')
+        # Perform cross-validation for multi-class classification
+        accuracy_scores = cross_val_score(model, X, y, cv=cv, scoring='accuracy')
+        f1_scores = cross_val_score(model, X, y, cv=cv, scoring='f1_macro')
         
         results = {
-            'mean_score': cv_scores.mean(),
-            'std_score': cv_scores.std(),
-            'scores': cv_scores.tolist()
+            'mean_accuracy': accuracy_scores.mean(),
+            'std_accuracy': accuracy_scores.std(),
+            'mean_f1_macro': f1_scores.mean(),
+            'std_f1_macro': f1_scores.std(),
+            'mean_score': accuracy_scores.mean(),  # Primary metric for comparison
+            'std_score': accuracy_scores.std(),
+            'accuracy_scores': accuracy_scores.tolist(),
+            'f1_scores': f1_scores.tolist()
         }
         
         return results
@@ -181,12 +187,19 @@ class ModelTrainer:
                 if self.clearml_logger:
                     self.clearml_logger.report_scalar(
                         title="Model Performance",
-                        series=f"{model_name}_cv_auc",
-                        value=cv_results['mean_score'],
+                        series=f"{model_name}_cv_accuracy",
+                        value=cv_results['mean_accuracy'],
+                        iteration=0
+                    )
+                    self.clearml_logger.report_scalar(
+                        title="Model Performance",
+                        series=f"{model_name}_cv_f1_macro",
+                        value=cv_results['mean_f1_macro'],
                         iteration=0
                     )
                 
-                logger.info(f"{model_name} - CV AUC: {cv_results['mean_score']:.4f} ± {cv_results['std_score']:.4f}")
+                logger.info(f"{model_name} - CV Accuracy: {cv_results['mean_accuracy']:.4f} ± {cv_results['std_accuracy']:.4f}")
+                logger.info(f"{model_name} - CV F1-Macro: {cv_results['mean_f1_macro']:.4f} ± {cv_results['std_f1_macro']:.4f}")
                 
             except Exception as e:
                 logger.error(f"Error training {model_name}: {e}")
@@ -208,7 +221,7 @@ class ModelTrainer:
         self.best_model = results[best_model_name]['model']
         self.best_score = results[best_model_name]['cv_results']['mean_score']
         
-        logger.info(f"Best base model: {best_model_name} with AUC: {self.best_score:.4f}")
+        logger.info(f"Best base model: {best_model_name} with Accuracy: {self.best_score:.4f}")
         
         return results
     
@@ -220,8 +233,8 @@ class ModelTrainer:
             # Define hyperparameter search space based on model
             if model_name == 'lightgbm':
                 params = {
-                    'objective': 'binary',
-                    'metric': 'auc',
+                    'objective': 'multiclass',
+                    'metric': 'multi_logloss',
                     'boosting_type': 'gbdt',
                     'num_leaves': trial.suggest_int('num_leaves', 10, 300),
                     'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.3),
@@ -236,8 +249,8 @@ class ModelTrainer:
                 
             elif model_name == 'xgboost':
                 params = {
-                    'objective': 'binary:logistic',
-                    'eval_metric': 'auc',
+                    'objective': 'multi:softprob',
+                    'eval_metric': 'mlogloss',
                     'n_estimators': trial.suggest_int('n_estimators', 100, 1000),
                     'max_depth': trial.suggest_int('max_depth', 3, 10),
                     'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.3),
@@ -250,8 +263,8 @@ class ModelTrainer:
                 
             elif model_name == 'catboost':
                 params = {
-                    'objective': 'Logloss',
-                    'eval_metric': 'AUC',
+                    'objective': 'MultiClass',
+                    'eval_metric': 'MultiClass',
                     'iterations': trial.suggest_int('iterations', 100, 1000),
                     'depth': trial.suggest_int('depth', 4, 10),
                     'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.3),
@@ -296,13 +309,13 @@ class ModelTrainer:
         best_score = study.best_value
         
         logger.info(f"Best parameters for {model_name}: {best_params}")
-        logger.info(f"Best CV AUC: {best_score:.4f}")
+        logger.info(f"Best CV Accuracy: {best_score:.4f}")
         
         # Train final model with best parameters
         if model_name == 'lightgbm':
             best_params.update({
-                'objective': 'binary',
-                'metric': 'auc',
+                'objective': 'multiclass',
+                'metric': 'multi_logloss',
                 'boosting_type': 'gbdt',
                 'random_state': self.config.get('models', {}).get('random_state', 42),
                 'verbose': -1
@@ -310,16 +323,16 @@ class ModelTrainer:
             final_model = lgb.LGBMClassifier(**best_params)
         elif model_name == 'xgboost':
             best_params.update({
-                'objective': 'binary:logistic',
-                'eval_metric': 'auc',
+                'objective': 'multi:softprob',
+                'eval_metric': 'mlogloss',
                 'random_state': self.config.get('models', {}).get('random_state', 42),
                 'verbosity': 0
             })
             final_model = xgb.XGBClassifier(**best_params)
         elif model_name == 'catboost':
             best_params.update({
-                'objective': 'Logloss',
-                'eval_metric': 'AUC',
+                'objective': 'MultiClass',
+                'eval_metric': 'MultiClass',
                 'random_state': self.config.get('models', {}).get('random_state', 42),
                 'verbose': False
             })
@@ -336,7 +349,7 @@ class ModelTrainer:
         if self.clearml_logger:
             self.clearml_logger.report_scalar(
                 title="Optimization Results",
-                series=f"{model_name}_optimized_auc",
+                series=f"{model_name}_optimized_accuracy",
                 value=best_score,
                 iteration=0
             )
@@ -345,7 +358,7 @@ class ModelTrainer:
         if best_score > self.best_score:
             self.best_model = final_model
             self.best_score = best_score
-            logger.info(f"New best model: {model_name} with AUC: {best_score:.4f}")
+            logger.info(f"New best model: {model_name} with Accuracy: {best_score:.4f}")
         
         return {
             'model': final_model,
@@ -401,14 +414,14 @@ class ModelTrainer:
                 return self
             
             def predict_proba(self, X):
-                predictions = np.array([model.predict_proba(X)[:, 1] 
-                                      for model in self.models])
-                weighted_pred = np.average(predictions, weights=self.weights, axis=0)
-                # Return in sklearn format
-                return np.vstack([1-weighted_pred, weighted_pred]).T
+                # Get probabilities from all models
+                all_predictions = [model.predict_proba(X) for model in self.models]
+                # Average probabilities across all models
+                weighted_pred = np.average(all_predictions, weights=self.weights, axis=0)
+                return weighted_pred
             
             def predict(self, X):
-                return (self.predict_proba(X)[:, 1] > 0.5).astype(int)
+                return np.argmax(self.predict_proba(X), axis=1)
         
         ensemble_models = [result['model'] for _, result in top_models]
         ensemble = EnsembleModel(ensemble_models)
@@ -416,13 +429,13 @@ class ModelTrainer:
         # Evaluate ensemble
         cv_results = self.cross_validate_model(ensemble, X, y)
         
-        logger.info(f"Ensemble CV AUC: {cv_results['mean_score']:.4f} ± {cv_results['std_score']:.4f}")
+        logger.info(f"Ensemble CV Accuracy: {cv_results['mean_score']:.4f} ± {cv_results['std_score']:.4f}")
         
         # Update best model if ensemble is better
         if cv_results['mean_score'] > self.best_score:
             self.best_model = ensemble
             self.best_score = cv_results['mean_score']
-            logger.info(f"Ensemble is new best model with AUC: {cv_results['mean_score']:.4f}")
+            logger.info(f"Ensemble is new best model with Accuracy: {cv_results['mean_score']:.4f}")
         
         return {
             'model': ensemble,
@@ -494,7 +507,7 @@ def train_competition_model(train_data_path: str, config_path: str = "config.yam
     # Save best model
     trainer.save_best_model("models/best_model.pkl")
     
-    logger.info(f"Training completed. Best AUC: {trainer.best_score:.4f}")
+    logger.info(f"Training completed. Best Accuracy: {trainer.best_score:.4f}")
     
     return trainer
 
