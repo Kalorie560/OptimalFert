@@ -219,7 +219,12 @@ def check_environment():
         logger.error("Missing required packages:")
         for package in missing_packages:
             logger.error(f"  - {package}")
-        logger.error("\nInstall missing packages with:")
+        logger.error("")
+        logger.error("🔧 SOLUTION:")
+        logger.error("Install all dependencies from requirements.txt:")
+        logger.error("pip install -r requirements.txt")
+        logger.error("")
+        logger.error("Or install missing packages individually:")
         logger.error("pip install " + " ".join(missing_packages))
         return False
     
