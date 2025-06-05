@@ -259,6 +259,19 @@ class ModelTrainer:
                     'verbose': False
                 }
                 model = CatBoostClassifier(**params)
+                
+            elif model_name == 'logistic_regression':
+                params = {
+                    'C': trial.suggest_float('C', 1e-4, 1e2, log=True),
+                    'penalty': trial.suggest_categorical('penalty', ['l1', 'l2', 'elasticnet']),
+                    'solver': 'saga',  # saga supports all penalties
+                    'max_iter': trial.suggest_int('max_iter', 1000, 5000),
+                    'random_state': self.config.get('models', {}).get('random_state', 42)
+                }
+                # Add l1_ratio for elasticnet penalty
+                if params['penalty'] == 'elasticnet':
+                    params['l1_ratio'] = trial.suggest_float('l1_ratio', 0.0, 1.0)
+                model = LogisticRegression(**params)
             
             else:
                 raise ValueError(f"Unsupported model for optimization: {model_name}")
@@ -310,6 +323,11 @@ class ModelTrainer:
                 'verbose': False
             })
             final_model = CatBoostClassifier(**best_params)
+        elif model_name == 'logistic_regression':
+            best_params.update({
+                'random_state': self.config.get('models', {}).get('random_state', 42)
+            })
+            final_model = LogisticRegression(**best_params)
         
         final_model.fit(X, y)
         
