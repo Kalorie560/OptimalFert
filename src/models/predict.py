@@ -1,5 +1,5 @@
 """
-Prediction and submission generation module for Playground Series S5E6
+Prediction and submission generation module for fertilizer name prediction
 """
 
 import pandas as pd
@@ -12,9 +12,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class CompetitionPredictor:
+class FertilizerPredictor:
     """
-    Handles model loading and prediction generation for competition submission
+    Handles model loading and prediction generation for fertilizer name prediction
     """
     
     def __init__(self, model_path: str, preprocessor_path: str):
@@ -45,6 +45,8 @@ class CompetitionPredictor:
                 from src.data.preprocessing import DataPreprocessor
                 self.preprocessor = DataPreprocessor()
                 self.preprocessor.preprocessor = preprocessor_data['preprocessor']
+                self.preprocessor.label_encoder = preprocessor_data['label_encoder']
+                self.preprocessor.target_classes = preprocessor_data['target_classes']
                 self.preprocessor.numeric_features = preprocessor_data['numeric_features']
                 self.preprocessor.categorical_features = preprocessor_data['categorical_features']
                 self.preprocessor.feature_names = preprocessor_data['feature_names']
@@ -60,13 +62,13 @@ class CompetitionPredictor:
     
     def predict_test_data(self, test_data_path: str) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Generate predictions for test data
+        Generate fertilizer name predictions for test data
         
         Args:
             test_data_path: Path to test CSV file
             
         Returns:
-            Tuple of (test_ids, predictions)
+            Tuple of (test_ids, fertilizer_names)
         """
         # Load test data
         test_df = pd.read_csv(test_data_path)
@@ -79,19 +81,20 @@ class CompetitionPredictor:
         X_test = self.preprocessor.transform(test_df)
         logger.info(f"Test data preprocessed to shape: {X_test.shape}")
         
-        # Generate predictions
-        if hasattr(self.model, 'predict_proba'):
-            # Get probabilities for positive class
-            predictions = self.model.predict_proba(X_test)[:, 1]
-        else:
-            # Fallback to binary predictions
-            predictions = self.model.predict(X_test).astype(float)
+        # Generate predictions (class labels)
+        predicted_labels = self.model.predict(X_test)
         
-        logger.info(f"Generated {len(predictions)} predictions")
-        logger.info(f"Prediction range: [{predictions.min():.4f}, {predictions.max():.4f}]")
-        logger.info(f"Mean prediction: {predictions.mean():.4f}")
+        # Convert predictions back to fertilizer names
+        fertilizer_names = self.preprocessor.decode_predictions(predicted_labels)
         
-        return test_ids, predictions
+        logger.info(f"Generated {len(fertilizer_names)} fertilizer predictions")
+        logger.info(f"Unique fertilizers predicted: {len(np.unique(fertilizer_names))}")
+        logger.info(f"Fertilizer prediction counts:")
+        unique, counts = np.unique(fertilizer_names, return_counts=True)
+        for fert, count in zip(unique, counts):
+            logger.info(f"  {fert}: {count}")
+        
+        return test_ids, fertilizer_names
     
     def create_submission_file(self, test_data_path: str, 
                              submission_path: str = "submission.csv",
@@ -108,12 +111,12 @@ class CompetitionPredictor:
             Submission dataframe
         """
         # Generate predictions
-        test_ids, predictions = self.predict_test_data(test_data_path)
+        test_ids, fertilizer_names = self.predict_test_data(test_data_path)
         
         # Create submission dataframe
         submission_df = pd.DataFrame({
             'id': test_ids,
-            'target': predictions
+            'Fertilizer Name': fertilizer_names
         })
         
         # Validate format if sample submission is provided
@@ -137,8 +140,18 @@ class CompetitionPredictor:
             
             logger.info("Submission format validated against sample submission")
         
-        # Ensure target values are in valid range [0, 1] for ROC AUC
-        submission_df['target'] = np.clip(submission_df['target'], 0.0, 1.0)
+        # Validate fertilizer names are from known set
+        known_fertilizers = set(self.preprocessor.target_classes)
+        predicted_fertilizers = set(submission_df['Fertilizer Name'])
+        unknown_fertilizers = predicted_fertilizers - known_fertilizers
+        if unknown_fertilizers:
+            logger.warning(f"Unknown fertilizers in predictions: {unknown_fertilizers}")
+            # Replace unknown fertilizers with most common one
+            most_common_fertilizer = submission_df['Fertilizer Name'].mode()[0]
+            submission_df.loc[
+                submission_df['Fertilizer Name'].isin(unknown_fertilizers), 
+                'Fertilizer Name'
+            ] = most_common_fertilizer
         
         # Save submission
         os.makedirs(os.path.dirname(submission_path) if os.path.dirname(submission_path) else '.', 
@@ -147,23 +160,22 @@ class CompetitionPredictor:
         
         logger.info(f"Submission file saved to {submission_path}")
         logger.info(f"Submission shape: {submission_df.shape}")
-        logger.info(f"Target statistics:")
-        logger.info(f"  Mean: {submission_df['target'].mean():.4f}")
-        logger.info(f"  Std: {submission_df['target'].std():.4f}")
-        logger.info(f"  Min: {submission_df['target'].min():.4f}")
-        logger.info(f"  Max: {submission_df['target'].max():.4f}")
+        logger.info(f"Fertilizer prediction distribution:")
+        fertilizer_counts = submission_df['Fertilizer Name'].value_counts()
+        for fertilizer, count in fertilizer_counts.items():
+            logger.info(f"  {fertilizer}: {count} ({count/len(submission_df)*100:.1f}%)")
         
         return submission_df
     
-    def predict_single_sample(self, feature_dict: dict) -> float:
+    def predict_single_sample(self, feature_dict: dict) -> Tuple[str, dict]:
         """
-        Predict for a single sample (for web app)
+        Predict fertilizer for a single sample (for web app)
         
         Args:
             feature_dict: Dictionary with feature names as keys and values
             
         Returns:
-            Prediction probability
+            Tuple of (predicted_fertilizer_name, probability_dict)
         """
         # Create dataframe from feature dict
         sample_df = pd.DataFrame([feature_dict])
@@ -175,13 +187,27 @@ class CompetitionPredictor:
         # Preprocess
         X_sample = self.preprocessor.transform(sample_df)
         
-        # Predict
+        # Predict class probabilities
         if hasattr(self.model, 'predict_proba'):
-            prediction = self.model.predict_proba(X_sample)[0, 1]
+            probabilities = self.model.predict_proba(X_sample)[0]
+            predicted_class = np.argmax(probabilities)
         else:
-            prediction = float(self.model.predict(X_sample)[0])
+            predicted_class = self.model.predict(X_sample)[0]
+            # Create dummy probabilities
+            n_classes = len(self.preprocessor.target_classes)
+            probabilities = np.zeros(n_classes)
+            probabilities[predicted_class] = 1.0
         
-        return prediction
+        # Convert to fertilizer name
+        fertilizer_name = self.preprocessor.decode_predictions([predicted_class])[0]
+        
+        # Create probability dictionary
+        prob_dict = {
+            fertilizer: float(prob) 
+            for fertilizer, prob in zip(self.preprocessor.target_classes, probabilities)
+        }
+        
+        return fertilizer_name, prob_dict
 
 
 def generate_submission(model_path: str = "models/best_model.pkl",
@@ -190,7 +216,7 @@ def generate_submission(model_path: str = "models/best_model.pkl",
                        sample_submission_path: str = "data/sample_submission.csv",
                        output_path: str = "submission.csv") -> pd.DataFrame:
     """
-    Generate competition submission file
+    Generate fertilizer prediction submission file
     
     Args:
         model_path: Path to trained model
@@ -202,10 +228,10 @@ def generate_submission(model_path: str = "models/best_model.pkl",
     Returns:
         Submission dataframe
     """
-    logger.info("Starting submission generation...")
+    logger.info("Starting fertilizer prediction submission generation...")
     
     # Initialize predictor
-    predictor = CompetitionPredictor(model_path, preprocessor_path)
+    predictor = FertilizerPredictor(model_path, preprocessor_path)
     
     # Create submission
     submission_df = predictor.create_submission_file(
@@ -251,14 +277,25 @@ def validate_submission(submission_path: str,
             logger.error("ID mismatch with sample submission")
             return False
         
-        # Check target values are numeric and in valid range
+        # Check target values based on column type
         target_col = submission_df.columns[1]  # Assuming second column is target
-        if not pd.api.types.is_numeric_dtype(submission_df[target_col]):
-            logger.error("Target column is not numeric")
-            return False
         
-        if submission_df[target_col].min() < 0 or submission_df[target_col].max() > 1:
-            logger.warning("Target values outside [0, 1] range - may be valid depending on competition")
+        if target_col == 'Fertilizer Name':
+            # For fertilizer names, check if all values are strings
+            if not submission_df[target_col].dtype == object:
+                logger.error("Fertilizer Name column should contain string values")
+                return False
+            # Check for empty values
+            if submission_df[target_col].str.strip().eq('').any():
+                logger.error("Fertilizer Name column contains empty values")
+                return False
+        else:
+            # For numeric targets
+            if not pd.api.types.is_numeric_dtype(submission_df[target_col]):
+                logger.error("Target column is not numeric")
+                return False
+            if submission_df[target_col].min() < 0 or submission_df[target_col].max() > 1:
+                logger.warning("Target values outside [0, 1] range - may be valid depending on competition")
         
         # Check for missing values
         if submission_df.isnull().any().any():

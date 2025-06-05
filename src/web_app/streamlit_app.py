@@ -1,5 +1,5 @@
 """
-Playground Series S5E6 予測のためのStreamlitウェブアプリケーション
+肥料名予測のためのStreamlitウェブアプリケーション
 """
 
 import streamlit as st
@@ -14,7 +14,7 @@ import plotly.graph_objects as go
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(project_root)
 
-from src.models.predict import CompetitionPredictor
+from src.models.predict import FertilizerPredictor
 import logging
 
 # Configure logging
@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 
 # ページ設定
 st.set_page_config(
-    page_title="Playground Series S5E6 予測システム",
-    page_icon="🎯",
+    page_title="OptimalFert 肥料推奨システム",
+    page_icon="🌱",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -46,7 +46,7 @@ def load_predictor():
             st.error(f"前処理器ファイルが見つかりません: {preprocessor_path}")
             return None
         
-        predictor = CompetitionPredictor(model_path, preprocessor_path)
+        predictor = FertilizerPredictor(model_path, preprocessor_path)
         return predictor
     
     except Exception as e:
@@ -148,10 +148,10 @@ def main():
     """メインアプリケーション"""
     
     # タイトルと説明
-    st.title("🎯 Playground Series S5E6 予測システム")
+    st.title("🌱 OptimalFert 肥料推奨システム")
     st.markdown("""
-    このウェブアプリケーションは、Kaggle Playground Series S5E6 コンペティション用の予測を提供します。
-    サイドバーで特徴量の値を入力すると、リアルタイムで予測結果を取得できます。
+    このウェブアプリケーションは、土壌条件、作物情報、環境データに基づいて最適な肥料を推奨します。
+    サイドバーで農業条件を入力すると、リアルタイムで肥料推奨結果を取得できます。
     """)
     
     # モデルとデータを読み込み
@@ -172,7 +172,7 @@ def main():
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        st.header("📈 予測結果")
+        st.header("🌱 肥料推奨結果")
         
         # 特徴量入力を取得
         feature_values = create_feature_inputs(predictor, sample_data)
@@ -180,40 +180,56 @@ def main():
         if feature_values:
             try:
                 # 予測を実行
-                prediction = predictor.predict_single_sample(feature_values)
+                fertilizer_name, probabilities = predictor.predict_single_sample(feature_values)
                 
-                # 予測を表示
+                # 推奨肥料を表示
+                st.success(f"🎯 **推奨肥料**: {fertilizer_name}")
+                
+                # 確信度を表示
+                max_prob = max(probabilities.values())
+                confidence_text = "高い" if max_prob > 0.6 else "中程度" if max_prob > 0.4 else "低い"
                 st.metric(
-                    label="予測確率",
-                    value=f"{prediction:.4f}",
-                    help="正例クラス（target=1）の確率"
+                    label="確信度",
+                    value=f"{max_prob:.1%}",
+                    help=f"推奨肥料の予測確信度: {confidence_text}"
                 )
                 
-                # 予測の解釈
-                if prediction > 0.7:
-                    st.success("🟢 正例クラスの高い確率")
-                elif prediction > 0.3:
-                    st.warning("🟡 中程度の確率")
-                else:
-                    st.info("🔵 正例クラスの低い確率")
+                # 全肥料タイプの確率分布を表示
+                st.subheader("📊 全肥料タイプの確率分布")
                 
-                # 予測ゲージ
-                fig = go.Figure(go.Indicator(
-                    mode = "gauge+number+delta",
-                    value = prediction,
-                    domain = {'x': [0, 1], 'y': [0, 1]},
-                    title = {'text': "予測スコア"},
-                    delta = {'reference': 0.5},
-                    gauge = {'axis': {'range': [None, 1]},
-                             'bar': {'color': "darkblue"},
-                             'steps' : [
-                                 {'range': [0, 0.3], 'color': "lightgray"},
-                                 {'range': [0.3, 0.7], 'color': "gray"},
-                                 {'range': [0.7, 1], 'color': "lightgreen"}],
-                             'threshold' : {'line': {'color': "red", 'width': 4},
-                                          'thickness': 0.75, 'value': 0.5}}))
+                # 確率を降順にソート
+                sorted_probs = sorted(probabilities.items(), key=lambda x: x[1], reverse=True)
+                
+                # 横棒グラフで表示
+                fertilizers = [item[0] for item in sorted_probs]
+                probs = [item[1] for item in sorted_probs]
+                
+                fig = go.Figure(go.Bar(
+                    x=probs,
+                    y=fertilizers,
+                    orientation='h',
+                    marker=dict(
+                        color=probs,
+                        colorscale='Viridis',
+                        showscale=True,
+                        colorbar=dict(title="確率")
+                    )
+                ))
+                
+                fig.update_layout(
+                    title="肥料タイプ別推奨確率",
+                    xaxis_title="確率",
+                    yaxis_title="肥料タイプ",
+                    height=400
+                )
                 
                 st.plotly_chart(fig, use_container_width=True)
+                
+                # 上位3つの肥料を詳細表示
+                st.subheader("🏆 上位推奨肥料")
+                for i, (fert, prob) in enumerate(sorted_probs[:3]):
+                    emoji = "🥇" if i == 0 else "🥈" if i == 1 else "🥉"
+                    st.write(f"{emoji} **{fert}**: {prob:.1%}")
                 
             except Exception as e:
                 st.error(f"予測エラー: {e}")
@@ -222,40 +238,55 @@ def main():
         st.header("ℹ️ 情報")
         
         # モデル情報
-        st.subheader("モデル詳細")
+        st.subheader("システム詳細")
         st.info(f"""
         **特徴量数**: {len(predictor.preprocessor.numeric_features) + len(predictor.preprocessor.categorical_features)}
         - 数値: {len(predictor.preprocessor.numeric_features)}
         - カテゴリカル: {len(predictor.preprocessor.categorical_features)}
         
-        **ターゲット**: 二値分類 (0/1)
-        **評価指標**: ROC AUC
+        **肥料タイプ数**: {len(predictor.preprocessor.target_classes)}
+        **タスク**: 多クラス分類
+        **評価指標**: Accuracy / F1-Macro
         """)
         
-        # 特徴量重要度（利用可能な場合）
+        # 利用可能な肥料タイプを表示
+        st.subheader("📋 利用可能な肥料タイプ")
+        for fert_type in sorted(predictor.preprocessor.target_classes):
+            st.write(f"• {fert_type}")
+        
+        # データセット情報（利用可能な場合）
         if sample_data is not None:
             st.subheader("データセット概要")
-            st.info(f"""
-            **訓練サンプル数**: {len(sample_data):,}
-            **ターゲット分布**:
-            - クラス 0: {(sample_data['target'] == 0).sum():,} ({(sample_data['target'] == 0).mean()*100:.1f}%)
-            - クラス 1: {(sample_data['target'] == 1).sum():,} ({(sample_data['target'] == 1).mean()*100:.1f}%)
-            """)
+            # 肥料名の分布を取得
+            target_col = predictor.preprocessor.target_column
+            if target_col in sample_data.columns:
+                fert_counts = sample_data[target_col].value_counts()
+                most_common = fert_counts.index[0]
+                st.info(f"""
+                **訓練サンプル数**: {len(sample_data):,}
+                **最も一般的な肥料**: {most_common} ({fert_counts.iloc[0]} サンプル)
+                **肥料タイプ分布**: {len(fert_counts)} 種類
+                """)
+            else:
+                st.info(f"**訓練サンプル数**: {len(sample_data):,}")
         
         # 使用方法
         st.subheader("使用方法")
         st.markdown("""
-        1. 📝 サイドバーで特徴量の値を入力
-        2. 🔄 予測は自動的に更新されます
-        3. 📊 予測確率とゲージを確認
-        4. 🎯 1.0に近い値ほど正例クラスの可能性が高いことを示します
+        1. 🌾 サイドバーで農業条件を入力
+           - 土壌特性（pH、NPK濃度など）
+           - 環境条件（気温、降水量など）
+           - 作物情報（種類、成長段階など）
+        2. 🔄 肥料推奨は自動的に更新されます
+        3. 📊 推奨確率と候補肥料を確認
+        4. 🎯 最も確率の高い肥料が推奨されます
         """)
 
 
 def batch_prediction_page():
-    """CSVファイルからのバッチ予測用ページ"""
-    st.title("📊 バッチ予測")
-    st.markdown("CSVファイルをアップロードして、複数のサンプルの予測を取得できます。")
+    """CSVファイルからのバッチ肥料推奨用ページ"""
+    st.title("📊 バッチ肥料推奨")
+    st.markdown("CSVファイルをアップロードして、複数の農業条件に対する肥料推奨を取得できます。")
     
     predictor = load_predictor()
     
@@ -267,7 +298,7 @@ def batch_prediction_page():
     uploaded_file = st.file_uploader(
         "CSVファイルを選択",
         type="csv",
-        help="訓練データと同じ特徴量を含むCSVファイルをアップロードしてください"
+        help="農業条件データ（土壌、環境、作物情報）を含むCSVファイルをアップロードしてください"
     )
     
     if uploaded_file is not None:
@@ -278,48 +309,54 @@ def batch_prediction_page():
             st.dataframe(df.head())
             
             # 予測を実行
-            if st.button("予測を生成"):
-                with st.spinner("予測を生成中..."):
-                    predictions = []
+            if st.button("肥料推奨を生成"):
+                with st.spinner("肥料推奨を生成中..."):
+                    fertilizer_names = []
+                    max_probabilities = []
                     
                     for idx, row in df.iterrows():
-                        pred = predictor.predict_single_sample(row.to_dict())
-                        predictions.append(pred)
+                        fert_name, prob_dict = predictor.predict_single_sample(row.to_dict())
+                        fertilizer_names.append(fert_name)
+                        max_probabilities.append(max(prob_dict.values()))
                     
-                    # データフレームに予測を追加
+                    # データフレームに推奨結果を追加
                     result_df = df.copy()
-                    result_df['prediction'] = predictions
-                    result_df['predicted_class'] = (np.array(predictions) > 0.5).astype(int)
+                    result_df['Recommended_Fertilizer'] = fertilizer_names
+                    result_df['Confidence'] = max_probabilities
                     
                     # 結果を表示
-                    st.success("予測が正常に生成されました！")
+                    st.success("肥料推奨が正常に生成されました！")
                     st.dataframe(result_df)
                     
                     # ダウンロードボタン
                     csv = result_df.to_csv(index=False)
                     st.download_button(
-                        label="予測結果をCSVでダウンロード",
+                        label="推奨結果をCSVでダウンロード",
                         data=csv,
-                        file_name="predictions.csv",
+                        file_name="fertilizer_recommendations.csv",
                         mime="text/csv"
                     )
                     
-                    # 予測統計
-                    st.subheader("予測サマリー")
+                    # 推奨統計
+                    st.subheader("推奨サマリー")
                     col1, col2, col3 = st.columns(3)
                     
                     with col1:
-                        st.metric("総サンプル数", len(predictions))
+                        st.metric("総サンプル数", len(fertilizer_names))
                     with col2:
-                        st.metric("平均確率", f"{np.mean(predictions):.4f}")
+                        st.metric("平均確信度", f"{np.mean(max_probabilities):.1%}")
                     with col3:
-                        st.metric("予測正例数", f"{sum(np.array(predictions) > 0.5)}")
+                        unique_fertilizers = len(set(fertilizer_names))
+                        st.metric("推奨肥料タイプ数", unique_fertilizers)
                     
-                    # 予測のヒストグラム
-                    fig = px.histogram(
-                        x=predictions,
-                        bins=20,
-                        title="予測確率の分布"
+                    # 肥料推奨の分布
+                    fertilizer_counts = pd.Series(fertilizer_names).value_counts()
+                    fig = px.bar(
+                        x=fertilizer_counts.values,
+                        y=fertilizer_counts.index,
+                        orientation='h',
+                        title="推奨肥料の分布",
+                        labels={'x': '推奨回数', 'y': '肥料タイプ'}
                     )
                     st.plotly_chart(fig, use_container_width=True)
         
@@ -331,10 +368,10 @@ if __name__ == "__main__":
     # ページナビゲーションを作成
     page = st.sidebar.selectbox(
         "ナビゲーション",
-        ["単一予測", "バッチ予測"]
+        ["単一推奨", "バッチ推奨"]
     )
     
-    if page == "単一予測":
+    if page == "単一推奨":
         main()
-    elif page == "バッチ予測":
+    elif page == "バッチ推奨":
         batch_prediction_page()
