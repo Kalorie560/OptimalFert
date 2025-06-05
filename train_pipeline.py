@@ -202,7 +202,7 @@ def run_complete_pipeline(use_sample_data: bool = True):
 def check_environment():
     """Check if all required packages are available"""
     required_packages = [
-        'pandas', 'numpy', 'scikit-learn', 'lightgbm', 'xgboost', 
+        'pandas', 'numpy', 'sklearn', 'lightgbm', 'xgboost', 
         'catboost', 'optuna', 'matplotlib', 'seaborn', 'plotly',
         'streamlit', 'joblib', 'scipy', 'yaml'
     ]
