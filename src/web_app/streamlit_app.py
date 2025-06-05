@@ -1,5 +1,5 @@
 """
-Streamlit web application for Playground Series S5E6 predictions
+Playground Series S5E6 予測のためのStreamlitウェブアプリケーション
 """
 
 import streamlit as st
@@ -22,9 +22,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-# Page configuration
+# ページ設定
 st.set_page_config(
-    page_title="Playground Series S5E6 Predictor",
+    page_title="Playground Series S5E6 予測システム",
     page_icon="🎯",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -33,30 +33,30 @@ st.set_page_config(
 
 @st.cache_resource
 def load_predictor():
-    """Load the trained model and preprocessor"""
+    """訓練済みモデルと前処理器を読み込み"""
     try:
         model_path = os.path.join(project_root, "models", "best_model.pkl")
         preprocessor_path = os.path.join(project_root, "models", "preprocessor.pkl")
         
         if not os.path.exists(model_path):
-            st.error(f"Model file not found at {model_path}")
+            st.error(f"モデルファイルが見つかりません: {model_path}")
             return None
         
         if not os.path.exists(preprocessor_path):
-            st.error(f"Preprocessor file not found at {preprocessor_path}")
+            st.error(f"前処理器ファイルが見つかりません: {preprocessor_path}")
             return None
         
         predictor = CompetitionPredictor(model_path, preprocessor_path)
         return predictor
     
     except Exception as e:
-        st.error(f"Error loading model: {e}")
+        st.error(f"モデル読み込みエラー: {e}")
         return None
 
 
 @st.cache_data
 def load_sample_data():
-    """Load sample data to understand feature ranges"""
+    """特徴量の範囲を理解するためのサンプルデータを読み込み"""
     try:
         train_path = os.path.join(project_root, "data", "train.csv")
         if os.path.exists(train_path):
@@ -64,30 +64,30 @@ def load_sample_data():
         else:
             return None
     except Exception as e:
-        logger.warning(f"Could not load sample data: {e}")
+        logger.warning(f"サンプルデータを読み込めませんでした: {e}")
         return None
 
 
 def create_feature_inputs(predictor, sample_data):
-    """Create input widgets for all features"""
+    """全ての特徴量の入力ウィジェットを作成"""
     feature_values = {}
     
     if predictor is None:
-        st.error("Model not loaded. Please check the model files.")
+        st.error("モデルが読み込まれていません。モデルファイルを確認してください。")
         return {}
     
-    # Get feature information from preprocessor
+    # 前処理器から特徴量情報を取得
     numeric_features = predictor.preprocessor.numeric_features
     categorical_features = predictor.preprocessor.categorical_features
     
-    st.sidebar.header("📊 Feature Input")
+    st.sidebar.header("📊 特徴量入力")
     
-    # Numeric features
+    # 数値特徴量
     if numeric_features:
-        st.sidebar.subheader("Numeric Features")
+        st.sidebar.subheader("数値特徴量")
         
         for feature in numeric_features:
-            # Get feature statistics from sample data
+            # サンプルデータから特徴量統計を取得
             if sample_data is not None and feature in sample_data.columns:
                 feature_stats = sample_data[feature].describe()
                 min_val = float(feature_stats['min'])
@@ -95,114 +95,114 @@ def create_feature_inputs(predictor, sample_data):
                 mean_val = float(feature_stats['mean'])
                 std_val = float(feature_stats['std'])
                 
-                # Create input with reasonable bounds
+                # 適切な範囲で入力を作成
                 feature_values[feature] = st.sidebar.number_input(
                     f"{feature}",
                     min_value=min_val - 2*std_val,
                     max_value=max_val + 2*std_val,
                     value=mean_val,
                     step=(max_val - min_val) / 100,
-                    help=f"Range in data: [{min_val:.2f}, {max_val:.2f}], Mean: {mean_val:.2f}"
+                    help=f"データ範囲: [{min_val:.2f}, {max_val:.2f}], 平均: {mean_val:.2f}"
                 )
             else:
-                # Default input without sample data
+                # サンプルデータなしの場合のデフォルト入力
                 feature_values[feature] = st.sidebar.number_input(
                     f"{feature}",
                     value=0.0,
-                    help="Enter numeric value"
+                    help="数値を入力してください"
                 )
     
-    # Categorical features
+    # カテゴリカル特徴量
     if categorical_features:
-        st.sidebar.subheader("Categorical Features")
+        st.sidebar.subheader("カテゴリカル特徴量")
         
         for feature in categorical_features:
             if sample_data is not None and feature in sample_data.columns:
-                # Get unique values from sample data
+                # サンプルデータから一意の値を取得
                 unique_values = sorted(sample_data[feature].dropna().unique())
                 
-                if len(unique_values) <= 20:  # Use selectbox for small number of categories
+                if len(unique_values) <= 20:  # カテゴリ数が少ない場合はセレクトボックスを使用
                     feature_values[feature] = st.sidebar.selectbox(
                         f"{feature}",
                         options=unique_values,
-                        help=f"Available options: {unique_values}"
+                        help=f"利用可能な選択肢: {unique_values}"
                     )
-                else:  # Use text input for many categories
+                else:  # カテゴリ数が多い場合はテキスト入力を使用
                     feature_values[feature] = st.sidebar.text_input(
                         f"{feature}",
                         value=str(unique_values[0]) if unique_values else "",
-                        help=f"Sample values: {unique_values[:5]}..."
+                        help=f"サンプル値: {unique_values[:5]}..."
                     )
             else:
-                # Default input without sample data
+                # サンプルデータなしの場合のデフォルト入力
                 feature_values[feature] = st.sidebar.text_input(
                     f"{feature}",
                     value="",
-                    help="Enter categorical value"
+                    help="カテゴリ値を入力してください"
                 )
     
     return feature_values
 
 
 def main():
-    """Main application"""
+    """メインアプリケーション"""
     
-    # Title and description
-    st.title("🎯 Playground Series S5E6 Predictor")
+    # タイトルと説明
+    st.title("🎯 Playground Series S5E6 予測システム")
     st.markdown("""
-    This web application provides predictions for the Kaggle Playground Series S5E6 competition.
-    Enter feature values in the sidebar to get real-time predictions.
+    このウェブアプリケーションは、Kaggle Playground Series S5E6 コンペティション用の予測を提供します。
+    サイドバーで特徴量の値を入力すると、リアルタイムで予測結果を取得できます。
     """)
     
-    # Load model and data
+    # モデルとデータを読み込み
     predictor = load_predictor()
     sample_data = load_sample_data()
     
     if predictor is None:
-        st.error("⚠️ Model not available. Please ensure model files exist.")
+        st.error("⚠️ モデルが利用できません。モデルファイルが存在することを確認してください。")
         st.info("""
-        To use this application:
-        1. Train a model using the training pipeline
-        2. Ensure model files are saved in the `models/` directory
-        3. Restart the application
+        このアプリケーションを使用するには:
+        1. 訓練パイプラインを使用してモデルを訓練
+        2. モデルファイルが`models/`ディレクトリに保存されていることを確認
+        3. アプリケーションを再起動
         """)
         return
     
-    # Create main layout
+    # メインレイアウトを作成
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        st.header("📈 Prediction Results")
+        st.header("📈 予測結果")
         
-        # Get feature inputs
+        # 特徴量入力を取得
         feature_values = create_feature_inputs(predictor, sample_data)
         
         if feature_values:
             try:
-                # Make prediction
+                # 予測を実行
                 prediction = predictor.predict_single_sample(feature_values)
                 
-                # Display prediction
+                # 予測を表示
                 st.metric(
-                    label="Prediction Probability",
+                    label="予測確率",
                     value=f"{prediction:.4f}",
-                    help="Probability of positive class (target=1)"
+                    help="正例クラス（target=1）の確率"
                 )
                 
-                # Prediction interpretation
+                # 予測の解釈
                 if prediction > 0.7:
-                    st.success("🟢 High probability of positive class")
+                    st.success("🟢 正例クラスの高い確率")
                 elif prediction > 0.3:
-                    st.warning("🟡 Moderate probability")
+                    st.warning("🟡 中程度の確率")
                 else:
-                    st.info("🔵 Low probability of positive class")
+                    st.info("🔵 正例クラスの低い確率")
                 
-                # Prediction gauge
+                # 予測ゲージ
                 fig = go.Figure(go.Indicator(
                     mode = "gauge+number+delta",
                     value = prediction,
                     domain = {'x': [0, 1], 'y': [0, 1]},
-                    title = {'text': "Prediction Score"},
+                    title = {'text': "予測スコア"},
                     delta = {'reference': 0.5},
                     gauge = {'axis': {'range': [None, 1]},
                              'bar': {'color': "darkblue"},
@@ -216,125 +216,125 @@ def main():
                 st.plotly_chart(fig, use_container_width=True)
                 
             except Exception as e:
-                st.error(f"Error making prediction: {e}")
+                st.error(f"予測エラー: {e}")
     
     with col2:
-        st.header("ℹ️ Information")
+        st.header("ℹ️ 情報")
         
-        # Model information
-        st.subheader("Model Details")
+        # モデル情報
+        st.subheader("モデル詳細")
         st.info(f"""
-        **Features**: {len(predictor.preprocessor.numeric_features) + len(predictor.preprocessor.categorical_features)}
-        - Numeric: {len(predictor.preprocessor.numeric_features)}
-        - Categorical: {len(predictor.preprocessor.categorical_features)}
+        **特徴量数**: {len(predictor.preprocessor.numeric_features) + len(predictor.preprocessor.categorical_features)}
+        - 数値: {len(predictor.preprocessor.numeric_features)}
+        - カテゴリカル: {len(predictor.preprocessor.categorical_features)}
         
-        **Target**: Binary classification (0/1)
-        **Metric**: ROC AUC
+        **ターゲット**: 二値分類 (0/1)
+        **評価指標**: ROC AUC
         """)
         
-        # Feature importance (if available)
+        # 特徴量重要度（利用可能な場合）
         if sample_data is not None:
-            st.subheader("Dataset Overview")
+            st.subheader("データセット概要")
             st.info(f"""
-            **Training samples**: {len(sample_data):,}
-            **Target distribution**:
-            - Class 0: {(sample_data['target'] == 0).sum():,} ({(sample_data['target'] == 0).mean()*100:.1f}%)
-            - Class 1: {(sample_data['target'] == 1).sum():,} ({(sample_data['target'] == 1).mean()*100:.1f}%)
+            **訓練サンプル数**: {len(sample_data):,}
+            **ターゲット分布**:
+            - クラス 0: {(sample_data['target'] == 0).sum():,} ({(sample_data['target'] == 0).mean()*100:.1f}%)
+            - クラス 1: {(sample_data['target'] == 1).sum():,} ({(sample_data['target'] == 1).mean()*100:.1f}%)
             """)
         
-        # Instructions
-        st.subheader("How to Use")
+        # 使用方法
+        st.subheader("使用方法")
         st.markdown("""
-        1. 📝 Enter feature values in the sidebar
-        2. 🔄 Prediction updates automatically
-        3. 📊 View prediction probability and gauge
-        4. 🎯 Values closer to 1.0 indicate higher likelihood of positive class
+        1. 📝 サイドバーで特徴量の値を入力
+        2. 🔄 予測は自動的に更新されます
+        3. 📊 予測確率とゲージを確認
+        4. 🎯 1.0に近い値ほど正例クラスの可能性が高いことを示します
         """)
 
 
 def batch_prediction_page():
-    """Page for batch predictions from CSV file"""
-    st.title("📊 Batch Predictions")
-    st.markdown("Upload a CSV file to get predictions for multiple samples.")
+    """CSVファイルからのバッチ予測用ページ"""
+    st.title("📊 バッチ予測")
+    st.markdown("CSVファイルをアップロードして、複数のサンプルの予測を取得できます。")
     
     predictor = load_predictor()
     
     if predictor is None:
-        st.error("Model not available.")
+        st.error("モデルが利用できません。")
         return
     
-    # File upload
+    # ファイルアップロード
     uploaded_file = st.file_uploader(
-        "Choose a CSV file",
+        "CSVファイルを選択",
         type="csv",
-        help="Upload a CSV file with the same features as training data"
+        help="訓練データと同じ特徴量を含むCSVファイルをアップロードしてください"
     )
     
     if uploaded_file is not None:
         try:
-            # Read file
+            # ファイル読み込み
             df = pd.read_csv(uploaded_file)
-            st.write("**Uploaded data preview:**")
+            st.write("**アップロードされたデータのプレビュー:**")
             st.dataframe(df.head())
             
-            # Make predictions
-            if st.button("Generate Predictions"):
-                with st.spinner("Generating predictions..."):
+            # 予測を実行
+            if st.button("予測を生成"):
+                with st.spinner("予測を生成中..."):
                     predictions = []
                     
                     for idx, row in df.iterrows():
                         pred = predictor.predict_single_sample(row.to_dict())
                         predictions.append(pred)
                     
-                    # Add predictions to dataframe
+                    # データフレームに予測を追加
                     result_df = df.copy()
                     result_df['prediction'] = predictions
                     result_df['predicted_class'] = (np.array(predictions) > 0.5).astype(int)
                     
-                    # Display results
-                    st.success("Predictions generated successfully!")
+                    # 結果を表示
+                    st.success("予測が正常に生成されました！")
                     st.dataframe(result_df)
                     
-                    # Download button
+                    # ダウンロードボタン
                     csv = result_df.to_csv(index=False)
                     st.download_button(
-                        label="Download predictions as CSV",
+                        label="予測結果をCSVでダウンロード",
                         data=csv,
                         file_name="predictions.csv",
                         mime="text/csv"
                     )
                     
-                    # Summary statistics
-                    st.subheader("Prediction Summary")
+                    # 予測統計
+                    st.subheader("予測サマリー")
                     col1, col2, col3 = st.columns(3)
                     
                     with col1:
-                        st.metric("Total Samples", len(predictions))
+                        st.metric("総サンプル数", len(predictions))
                     with col2:
-                        st.metric("Mean Probability", f"{np.mean(predictions):.4f}")
+                        st.metric("平均確率", f"{np.mean(predictions):.4f}")
                     with col3:
-                        st.metric("Predicted Positive", f"{sum(np.array(predictions) > 0.5)}")
+                        st.metric("予測正例数", f"{sum(np.array(predictions) > 0.5)}")
                     
-                    # Histogram of predictions
+                    # 予測のヒストグラム
                     fig = px.histogram(
                         x=predictions,
                         bins=20,
-                        title="Distribution of Prediction Probabilities"
+                        title="予測確率の分布"
                     )
                     st.plotly_chart(fig, use_container_width=True)
         
         except Exception as e:
-            st.error(f"Error processing file: {e}")
+            st.error(f"ファイル処理エラー: {e}")
 
 
 if __name__ == "__main__":
-    # Create page navigation
+    # ページナビゲーションを作成
     page = st.sidebar.selectbox(
-        "Navigate",
-        ["Single Prediction", "Batch Predictions"]
+        "ナビゲーション",
+        ["単一予測", "バッチ予測"]
     )
     
-    if page == "Single Prediction":
+    if page == "単一予測":
         main()
-    elif page == "Batch Predictions":
+    elif page == "バッチ予測":
         batch_prediction_page()
