@@ -71,9 +71,13 @@ def setup_clearml():
                 auto_connect_frameworks=True
             )
             
-            # Set task description
+            # Set task description (using connect for newer ClearML versions)
             if project_config.get('description'):
-                task.set_description(project_config['description'])
+                try:
+                    task.set_description(project_config['description'])
+                except AttributeError:
+                    # Newer ClearML versions don't have set_description
+                    task.connect({'description': project_config['description']})
             
             # Connect configuration
             task.connect(config)
@@ -168,7 +172,7 @@ def run_complete_pipeline(use_sample_data: bool = True):
     logger.info("="*40)
     
     try:
-        eda_results = run_eda(train_path)
+        eda_results = run_eda(train_path, target_column='Fertilizer Name')
         logger.info("EDA completed successfully")
     except Exception as e:
         logger.error(f"EDA failed: {e}")

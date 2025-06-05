@@ -49,11 +49,13 @@ class EDAAnalyzer:
     
     def basic_info(self):
         """Generate basic dataset information"""
+        target_counts = self.train_df[self.target_column].value_counts()
+        
         info = {
             'shape': self.train_df.shape,
             'missing_values': self.train_df.isnull().sum().sum(),
-            'target_distribution': self.train_df[self.target_column].value_counts().to_dict(),
-            'target_ratio': self.train_df[self.target_column].mean(),
+            'target_distribution': target_counts.to_dict(),
+            'target_classes': len(target_counts),
             'numeric_features_count': len(self.numeric_features),
             'categorical_features_count': len(self.categorical_features),
             'memory_usage_mb': self.train_df.memory_usage(deep=True).sum() / 1024**2
@@ -62,7 +64,7 @@ class EDAAnalyzer:
         self.analysis_results['basic_info'] = info
         logger.info(f"Dataset shape: {info['shape']}")
         logger.info(f"Target distribution: {info['target_distribution']}")
-        logger.info(f"Target ratio (positive class): {info['target_ratio']:.3f}")
+        logger.info(f"Number of target classes: {info['target_classes']}")
         
         return info
     
@@ -87,11 +89,16 @@ class EDAAnalyzer:
     
     def target_analysis(self):
         """Detailed target variable analysis"""
+        value_counts = self.train_df[self.target_column].value_counts()
+        percentages = self.train_df[self.target_column].value_counts(normalize=True) * 100
+        
         target_stats = {
-            'value_counts': self.train_df[self.target_column].value_counts(),
-            'percentage': self.train_df[self.target_column].value_counts(normalize=True) * 100,
-            'mean': self.train_df[self.target_column].mean(),
-            'std': self.train_df[self.target_column].std()
+            'value_counts': value_counts,
+            'percentage': percentages,
+            'unique_classes': self.train_df[self.target_column].nunique(),
+            'most_frequent_class': value_counts.index[0],
+            'least_frequent_class': value_counts.index[-1],
+            'class_imbalance_ratio': value_counts.iloc[0] / value_counts.iloc[-1]
         }
         
         self.analysis_results['target_analysis'] = target_stats
@@ -104,11 +111,22 @@ class EDAAnalyzer:
         
         numeric_stats = self.train_df[self.numeric_features].describe()
         
-        # Correlation with target
-        correlations = {}
+        # For categorical target, calculate ANOVA F-statistic instead of correlation
+        from scipy.stats import f_oneway
+        target_relationships = {}
         for feature in self.numeric_features:
-            corr = self.train_df[feature].corr(self.train_df[self.target_column])
-            correlations[feature] = corr
+            # Group feature values by target class
+            groups = [self.train_df[self.train_df[self.target_column] == class_][feature].dropna() 
+                     for class_ in self.train_df[self.target_column].unique()]
+            # Filter out empty groups
+            groups = [group for group in groups if len(group) > 0]
+            
+            if len(groups) > 1:
+                try:
+                    f_stat, p_value = f_oneway(*groups)
+                    target_relationships[feature] = {'f_statistic': f_stat, 'p_value': p_value}
+                except:
+                    target_relationships[feature] = {'f_statistic': 0, 'p_value': 1}
         
         # Skewness and kurtosis
         skewness = self.train_df[self.numeric_features].skew()
@@ -116,7 +134,7 @@ class EDAAnalyzer:
         
         numeric_analysis = {
             'descriptive_stats': numeric_stats,
-            'correlations_with_target': correlations,
+            'target_relationships': target_relationships,
             'skewness': skewness,
             'kurtosis': kurtosis
         }
@@ -233,14 +251,14 @@ class EDAAnalyzer:
             plt.savefig(f"{save_path}/numeric_features_distribution.png", dpi=300, bbox_inches='tight')
             plt.close()
         
-        # 3. Correlation heatmap
+        # 3. Correlation heatmap (numeric features only for categorical target)
         if len(self.numeric_features) > 1:
-            corr_matrix = self.train_df[self.numeric_features + [self.target_column]].corr()
+            corr_matrix = self.train_df[self.numeric_features].corr()
             
             plt.figure(figsize=(10, 8))
             sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', center=0, 
                        square=True, linewidths=0.5)
-            plt.title('Feature Correlation Heatmap')
+            plt.title('Numeric Features Correlation Heatmap')
             plt.tight_layout()
             plt.savefig(f"{save_path}/correlation_heatmap.png", dpi=300, bbox_inches='tight')
             plt.close()
