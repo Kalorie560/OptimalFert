@@ -95,11 +95,8 @@ class ModelTrainer:
             logger.info("ClearML task initialized successfully")
             
         except Exception as e:
-            logger.warning(f"Failed to initialize ClearML: {e}")
-            logger.info("ClearML is optional for tracking experiments. To use ClearML:")
-            logger.info("1. Install: pip install clearml")
-            logger.info("2. Configure: clearml-init")
-            logger.info("3. Or visit: https://clear.ml/docs for setup instructions")
+            # Suppress verbose ClearML configuration messages since it's optional
+            logger.info("ClearML experiment tracking disabled (optional feature)")
             self.clearml_task = None
             self.clearml_logger = None
     
@@ -387,6 +384,20 @@ class ModelTrainer:
                 """Fit method required by scikit-learn interface - already fitted in this case"""
                 # Component models are already fitted, so this is a no-op
                 self.is_fitted_ = True
+                return self
+            
+            def get_params(self, deep=True):
+                """Get parameters for this estimator - required by scikit-learn"""
+                params = {
+                    'models': self.models if not deep else [model for model in self.models],
+                    'weights': self.weights
+                }
+                return params
+            
+            def set_params(self, **params):
+                """Set parameters for this estimator - required by scikit-learn"""
+                for param, value in params.items():
+                    setattr(self, param, value)
                 return self
             
             def predict_proba(self, X):
