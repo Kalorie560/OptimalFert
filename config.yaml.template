@@ -1,0 +1,25 @@
+# ClearML Configuration Template
+# Copy this file to config.yaml and fill in your API credentials
+# IMPORTANT: Do not commit config.yaml to version control
+
+clearml:
+  api_host: "https://api.clear.ml"
+  web_host: "https://app.clear.ml"
+  files_host: "https://files.clear.ml"
+  api_key: "YOUR_API_KEY_HERE"  # Replace with your actual API key
+  api_secret_key: "YOUR_SECRET_KEY_HERE"  # Replace with your actual secret key
+
+# Project Configuration
+project:
+  name: "Playground-Series-S5E6"
+  description: "Binary classification competition with ROC AUC optimization"
+  
+# Model Configuration
+models:
+  random_state: 42
+  cv_folds: 5
+  
+# Optuna Configuration
+optimization:
+  n_trials: 100
+  study_name: "playground_s5e6_optimization"
